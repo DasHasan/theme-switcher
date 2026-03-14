@@ -10,17 +10,35 @@ public class WinTheme {
     public static extern IntPtr SendMessageTimeout(
         IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam,
         uint fuFlags, uint uTimeout, out UIntPtr lpdwResult);
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    public static extern bool SystemParametersInfo(
+        uint uAction, uint uParam, string lpvParam, uint fuWinIni);
     public static readonly IntPtr HWND_BROADCAST = new IntPtr(0xffff);
     public const uint WM_SETTINGCHANGE = 0x001A;
     public const uint SMTO_ABORTIFHUNG = 0x0002;
+    public const uint SPI_SETDESKWALLPAPER = 0x0014;
+    public const uint SPIF_UPDATEINIFILE = 0x0001;
+    public const uint SPIF_SENDCHANGE = 0x0002;
 }
 "@
 
 $REGISTRY_KEY = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
 
+# --- Wallpaper paths ---
+$WallpaperDark  = "C:\WINDOWS\web\wallpaper\Windows\img19.jpg"
+$WallpaperLight = "C:\WINDOWS\web\wallpaper\Windows\img0.jpg"
+
 function Get-CurrentMode {
     $value = (Get-ItemProperty -Path $REGISTRY_KEY -Name AppsUseLightTheme).AppsUseLightTheme
     if ($value -eq 1) { return "light" } else { return "dark" }
+}
+
+function Set-Wallpaper($path) {
+    if ($path -and (Test-Path $path)) {
+        [WinTheme]::SystemParametersInfo(
+            [WinTheme]::SPI_SETDESKWALLPAPER, 0, $path,
+            [WinTheme]::SPIF_UPDATEINIFILE -bor [WinTheme]::SPIF_SENDCHANGE) | Out-Null
+    }
 }
 
 function Set-Mode($mode) {
@@ -32,6 +50,8 @@ function Set-Mode($mode) {
         [WinTheme]::HWND_BROADCAST, [WinTheme]::WM_SETTINGCHANGE,
         [UIntPtr]::Zero, "ImmersiveColorSet",
         [WinTheme]::SMTO_ABORTIFHUNG, 5000, [ref]$dummy) | Out-Null
+    # Switch wallpaper
+    if ($mode -eq "dark") { Set-Wallpaper $WallpaperDark } else { Set-Wallpaper $WallpaperLight }
 }
 
 function New-TrayIcon($mode) {
